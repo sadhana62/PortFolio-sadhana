@@ -5,8 +5,8 @@ import { useEffect, useRef } from 'react'
 
   Each section is wrapped in a <Chapter>. On a large enough screen, if the section fits on one screen,
   the chapter becomes "pinned": its page sticks in place while you scroll, the panels arrive one by one
-  (CSS reads --p, the chapter's scroll progress, and each panel's --i), and at the end the page tilts and
-  shades as if it's being turned. Sections that are too tall, small screens and reduced motion all fall
+  and at the end the page tilts and shades as if it's being turned. Only the moving panels, the page and a
+  shade layer get inline transform/opacity each frame, so the browser never restyles the whole chapter. Sections that are too tall, small screens and reduced motion all fall
   back to normal scrolling with the usual fade-in.
 */
 export default function Chapter({ children }) {
@@ -32,18 +32,20 @@ export function useChapters(deps = []) {
       const vh = window.innerHeight
       const canPin = !reduce && window.innerWidth >= 1024 && vh >= 680
       chapters.forEach((ch) => {
-        ch.classList.remove('pinned')
-        ch.style.removeProperty('--len')
         const page = ch.firstElementChild
         const panels = [...page.querySelectorAll('.reveal')]
+        ch.classList.remove('pinned')
+        ch.style.removeProperty('--len')
+        page.style.transform = ''
+        panels.forEach((el) => { el.style.opacity = ''; el.style.transform = '' })
         const fits = page.scrollHeight <= vh - 64 - 24
         if (!canPin || !fits || panels.length === 0) return
-        panels.forEach((el, i) => el.style.setProperty('--i', i))
-        ch.style.setProperty('--n', panels.length)
+        let shade = page.querySelector(':scope > .turn-shade')
+        if (!shade) { shade = document.createElement('div'); shade.className = 'turn-shade'; page.appendChild(shade) }
         const len = vh + panels.length * SCROLL_PER_PANEL * vh + HOLD * vh
         ch.style.setProperty('--len', `${Math.round(len)}px`)
         ch.classList.add('pinned')
-        pinned.push(ch)
+        pinned.push({ ch, page, panels, shade, last: -1 })
       })
       update()
     }
@@ -51,7 +53,8 @@ export function useChapters(deps = []) {
     const update = () => {
       frame.current = 0
       const vh = window.innerHeight
-      for (const ch of pinned) {
+      for (const item of pinned) {
+        const { ch, page, panels, shade } = item
         const r = ch.getBoundingClientRect()
         if (r.bottom < -vh || r.top > vh * 2) continue
         const total = ch.offsetHeight - (vh - 64)
@@ -60,8 +63,17 @@ export function useChapters(deps = []) {
         // the page starts turning halfway through the hold
         const hold = Math.min(1, Math.max(0, (p - holdStart) / (1 - holdStart)))
         const out = Math.min(1, Math.max(0, (hold - 0.4) / 0.6))
-        ch.style.setProperty('--p', (p / holdStart).toFixed(4))
-        ch.style.setProperty('--out', out.toFixed(4))
+        if (Math.abs(p - item.last) < 0.0005) continue
+        item.last = p
+        const pp = p / holdStart
+        const n = panels.length
+        panels.forEach((el, i) => {
+          const a = Math.min(1, Math.max(0, (pp * (n + 1.6) - i) * 1.4))
+          el.style.opacity = a.toFixed(3)
+          el.style.transform = a >= 1 ? 'none' : `translate3d(0, ${((1 - a) * 46).toFixed(1)}px, 0) rotate(${((1 - a) * -1.4).toFixed(2)}deg)`
+        })
+        page.style.transform = out > 0 ? `perspective(1600px) rotateY(${(out * 10).toFixed(2)}deg) scale(${(1 - out * 0.04).toFixed(4)})` : ''
+        shade.style.opacity = out.toFixed(3)
       }
     }
 
@@ -79,6 +91,7 @@ export function useChapters(deps = []) {
       window.removeEventListener('resize', onResize)
       cancelAnimationFrame(frame.current)
       chapters.forEach((ch) => ch.classList.remove('pinned'))
+      document.querySelectorAll('.turn-shade').forEach((el) => el.remove())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)

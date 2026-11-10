@@ -26,7 +26,9 @@ export function useActiveSection(deps = []) {
   return active
 }
 
-export function Header({ active, linkPrefix = '' }) {
+export function Header({ route, linkPrefix = '' }) {
+  const seen = useActiveSection([route])
+  const active = route ? '' : seen
   const [dark, toggle] = useTheme()
   const [open, setOpen] = useState(false)
   useEffect(() => {

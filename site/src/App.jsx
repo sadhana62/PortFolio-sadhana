@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Lenis from 'lenis'
-import { Header, useActiveSection } from './components/Header.jsx'
+import { Header } from './components/Header.jsx'
 import Hero from './components/Hero.jsx'
 import Activity from './components/Activity.jsx'
 import Chapter, { useChapters } from './components/Chapter.jsx'
@@ -58,13 +58,12 @@ function Home() {
 export default function App() {
   useSmoothScroll()
   const work = useRoute()
-  const active = useActiveSection([work])
   return (
     <>
       <a href="#main" className="sr-only-focusable fixed top-3 left-3 z-[60] rounded-full bg-primary px-4 py-2 font-medium text-on-primary">
         Skip to content
       </a>
-      <Header active={work ? '' : active} linkPrefix={work ? './' : ''} />
+      <Header route={work} linkPrefix={work ? './' : ''} />
       {work ? <CaseStudy slug={work} /> : <Home />}
       <Footer />
     </>

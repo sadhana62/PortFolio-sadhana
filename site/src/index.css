@@ -217,29 +217,21 @@ html.lenis, html.lenis body { height: auto; }
 
 /*
   PAGE-TURNING CHAPTERS (desktop)
-  A chapter's page sticks to the screen while you scroll through it; its panels arrive one by one,
-  driven by --p (0 to 1, set from scroll), then the page tilts and shades as it turns to the next.
+  A chapter's page sticks to the screen while you scroll through it. src/components/Chapter.jsx sets the
+  panels' opacity/transform and the page tilt directly, so nothing else on the page is restyled per frame.
 */
 .chapter.pinned { height: var(--len); }
 .chapter.pinned > .page {
   position: sticky; top: 64px; height: calc(100vh - 64px);
   display: flex; flex-direction: column; justify-content: center;
   transform-origin: 0% 50%;
-  transform: perspective(1600px) rotateY(calc(var(--out, 0) * 10deg)) scale(calc(1 - var(--out, 0) * .04));
-  will-change: transform;
 }
-.chapter.pinned > .page::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
+.chapter.pinned .reveal { transition: none; will-change: opacity, transform; }
+.chapter.pinned .card.reveal::before { clip-path: none; transition: none; }
+.turn-shade {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
   background: linear-gradient(90deg, transparent 35%, rgb(0 0 0 / .14) 100%);
-  opacity: var(--out, 0);
 }
-.chapter.pinned .reveal {
-  --a: clamp(0, calc((var(--p, 0) * (var(--n, 1) + 1.6) - var(--i, 0)) * 1.4), 1);
-  opacity: var(--a);
-  transform: translateY(calc((1 - var(--a)) * 46px)) rotate(calc((1 - var(--a)) * -1.4deg));
-  transition: none;
-}
-.chapter.pinned .card.reveal::before { clip-path: inset(0 calc((1 - var(--a)) * 100%) calc((1 - var(--a)) * 100%) 0); transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }

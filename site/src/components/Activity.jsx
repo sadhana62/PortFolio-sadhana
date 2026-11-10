@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import data from '../data/stats.json'
 import { stats as cfg } from '../content.js'
 import { Reveal, SectionHeading } from './ui.jsx'
@@ -5,22 +6,30 @@ import Icon from './Icons.jsx'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-IN') : '—')
-const fmtDate = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+/* "2026-11-09" -> "9 Nov 2026" with plain string maths (Intl date formatting is slow when done hundreds of times). */
+const fmtDate = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
 
-/* Calendar heatmap: one column per week, one square per day, 5 shades of rose. */
-function Heatmap({ days, levelOf, unit, label }) {
-  if (!days?.length) return null
-  const byDate = new Map(days.map((d) => [d.date, d]))
-  const end = new Date(days[days.length - 1].date + 'T00:00:00')
-  const start = new Date(end)
-  start.setDate(start.getDate() - 52 * 7 - end.getDay())
-  const cells = []
-  for (let d = new Date(start), i = 0; d <= end; d.setDate(d.getDate() + 1), i++) {
-    const iso = d.toISOString().slice(0, 10)
-    const day = byDate.get(iso)
-    const count = day?.count ?? 0
-    cells.push({ iso, count, level: day ? levelOf(day) : 0, x: Math.floor(i / 7), y: d.getDay(), month: d.getMonth(), date: d.getDate() })
-  }
+/* Calendar heatmap: one column per week, one square per day, 5 shades of pink. Built once, then memoised. */
+const Heatmap = memo(function Heatmap({ days, levelOf, unit, label }) {
+  const cells = useMemo(() => {
+    if (!days?.length) return []
+    const byDate = new Map(days.map((d) => [d.date, d]))
+    const end = new Date(days[days.length - 1].date + 'T00:00:00Z')
+    const start = new Date(end)
+    start.setUTCDate(start.getUTCDate() - 52 * 7 - end.getUTCDay())
+    const out = []
+    for (let d = new Date(start), i = 0; d <= end; d.setUTCDate(d.getUTCDate() + 1), i++) {
+      const iso = d.toISOString().slice(0, 10)
+      const day = byDate.get(iso)
+      const count = day?.count ?? 0
+      out.push({
+        iso, x: Math.floor(i / 7), y: d.getUTCDay(), month: d.getUTCMonth(), date: d.getUTCDate(), level: day ? levelOf(day) : 0,
+        tip: `${count} ${unit}${count === 1 ? '' : 's'} on ${fmtDate(iso)}`,
+      })
+    }
+    return out
+  }, [days, levelOf, unit])
+  if (!cells.length) return null
   const s = 11, g = 3, step = s + g, weeks = cells[cells.length - 1].x + 1
   const W = 28 + weeks * step, H = 18 + 7 * step
   const months = cells.filter((c) => c.date <= 7 && c.y === 0 && c.x > 0)
@@ -35,7 +44,7 @@ function Heatmap({ days, levelOf, unit, label }) {
         ))}
         {cells.map((c) => (
           <rect key={c.iso} x={28 + c.x * step} y={18 + c.y * step} width={s} height={s} rx="3" fill={`var(--heat-${c.level})`}>
-            <title>{`${c.count} ${unit}${c.count === 1 ? '' : 's'} on ${fmtDate(c.iso)}`}</title>
+            <title>{c.tip}</title>
           </rect>
         ))}
       </svg>
@@ -46,7 +55,7 @@ function Heatmap({ days, levelOf, unit, label }) {
       </div>
     </div>
   )
-}
+})
 
 function Stat({ value, label }) {
   return (
@@ -78,6 +87,9 @@ function Donut({ parts, total, center, label }) {
   )
 }
 
+const ghLevel = (d) => d.level
+const lcLevel = (d) => (d.count >= 10 ? 4 : d.count >= 6 ? 3 : d.count >= 3 ? 2 : d.count >= 1 ? 1 : 0)
+
 function GitHubCard({ gh }) {
   const langs = gh.languages.slice(0, 6)
   const max = langs[0]?.count || 1
@@ -95,7 +107,7 @@ function GitHubCard({ gh }) {
         <Stat value={gh.since} label="on GitHub since" />
       </div>
       <p className="mt-7 mb-3 text-sm font-semibold text-ink">Contributions in the last year</p>
-      <Heatmap days={gh.contributions.days} levelOf={(d) => d.level} unit="contribution"
+      <Heatmap days={gh.contributions.days} levelOf={ghLevel} unit="contribution"
         label={`GitHub contribution calendar: ${gh.contributions.total} contributions in the last year`} />
       <p className="mt-7 mb-3 text-sm font-semibold text-ink">Main language of my own repos</p>
       <ul className="space-y-2.5">
@@ -119,7 +131,6 @@ function LeetCodeCard({ lc }) {
     { name: 'Medium', value: lc.solved.medium, of: lc.totalQuestions?.medium, color: 'var(--medium)' },
     { name: 'Hard', value: lc.solved.hard, of: lc.totalQuestions?.hard, color: 'var(--hard)' },
   ]
-  const lvl = (d) => (d.count >= 10 ? 4 : d.count >= 6 ? 3 : d.count >= 3 ? 2 : d.count >= 1 ? 1 : 0)
   return (
     <Reveal delay={100} className="card min-w-0 p-6 md:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -147,7 +158,7 @@ function LeetCodeCard({ lc }) {
         <Stat value={`${fmt(lc.streak)} days`} label="current streak" />
       </div>
       <p className="mt-7 mb-3 text-sm font-semibold text-ink">Submissions in the last year</p>
-      <Heatmap days={lc.submissions.days} levelOf={lvl} unit="submission"
+      <Heatmap days={lc.submissions.days} levelOf={lcLevel} unit="submission"
         label={`LeetCode submission calendar: ${lc.submissions.total} submissions in the last year`} />
     </Reveal>
   )
