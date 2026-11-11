@@ -225,6 +225,7 @@ html.lenis, html.lenis body { height: auto; }
   position: sticky; top: 64px; height: calc(100vh - 64px);
   display: flex; flex-direction: column; justify-content: center;
   transform-origin: 0% 50%;
+  will-change: transform; /* its own GPU layer: drifting and turning the page never repaints it */
 }
 .chapter.pinned .reveal { transition: none; will-change: opacity, transform; }
 .chapter.pinned .card.reveal::before { clip-path: none; transition: none; }

@@ -17,8 +17,10 @@ export default function Chapter({ children }) {
   )
 }
 
-const SCROLL_PER_PANEL = 0.22 // fraction of the viewport height scrolled per panel
-const HOLD = 0.35 // extra viewport heights to hold the finished page, then turn it
+const SCROLL_PER_PANEL = 0.08 // fraction of the viewport height scrolled per panel
+const MAX_PANELS_LEN = 0.45 // cap, so a chapter never feels stuck
+const HOLD = 0.15 // extra viewport heights to hold the finished page, then turn it
+const DRIFT = 56 // px the page drifts up while pinned, so every scroll visibly moves something
 
 export function useChapters(deps = []) {
   const frame = useRef(0)
@@ -42,7 +44,7 @@ export function useChapters(deps = []) {
         if (!canPin || !fits || panels.length === 0) return
         let shade = page.querySelector(':scope > .turn-shade')
         if (!shade) { shade = document.createElement('div'); shade.className = 'turn-shade'; page.appendChild(shade) }
-        const len = vh + panels.length * SCROLL_PER_PANEL * vh + HOLD * vh
+        const len = vh + Math.min(MAX_PANELS_LEN, panels.length * SCROLL_PER_PANEL) * vh + HOLD * vh
         ch.style.setProperty('--len', `${Math.round(len)}px`)
         ch.classList.add('pinned')
         pinned.push({ ch, page, panels, shade, last: -1 })
@@ -72,7 +74,8 @@ export function useChapters(deps = []) {
           el.style.opacity = a.toFixed(3)
           el.style.transform = a >= 1 ? 'none' : `translate3d(0, ${((1 - a) * 46).toFixed(1)}px, 0) rotate(${((1 - a) * -1.4).toFixed(2)}deg)`
         })
-        page.style.transform = out > 0 ? `perspective(1600px) rotateY(${(out * 10).toFixed(2)}deg) scale(${(1 - out * 0.04).toFixed(4)})` : ''
+        const drift = `translate3d(0, ${(-p * DRIFT).toFixed(1)}px, 0)`
+        page.style.transform = out > 0 ? `${drift} perspective(1600px) rotateY(${(out * 10).toFixed(2)}deg) scale(${(1 - out * 0.04).toFixed(4)})` : drift
         shade.style.opacity = out.toFixed(3)
       }
     }

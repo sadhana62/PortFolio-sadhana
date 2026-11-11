@@ -12,14 +12,41 @@ function useSmoothScroll() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const lenis = new Lenis({
-      lerp: 0.08,
-      wheelMultiplier: 0.95,
+      lerp: 0.11,
+      wheelMultiplier: 1,
       touchMultiplier: 1.2,
       smoothWheel: true,
       anchors: { offset: -72, duration: 1.6 },
     })
     let id = requestAnimationFrame(function raf(t) { lenis.raf(t); id = requestAnimationFrame(raf) })
-    return () => { cancelAnimationFrame(id); lenis.destroy() }
+
+    // Keyboard scrolling (arrows, Page Up/Down, Space, Home/End) glides the same way as the wheel.
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return
+      const t = e.target
+      if (t.closest?.('input, textarea, select, [contenteditable], [role="slider"], [role="listbox"], [role="menu"]')) return
+      const page = window.innerHeight - 120
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      const from = lenis.targetScroll
+      let to
+      switch (e.key) {
+        case 'ArrowDown': to = from + 140; break
+        case 'ArrowUp': to = from - 140; break
+        case 'PageDown': to = from + page; break
+        case 'PageUp': to = from - page; break
+        case ' ':
+          if (t.closest?.('button, a, summary')) return
+          to = from + (e.shiftKey ? -page : page); break
+        case 'Home': to = 0; break
+        case 'End': to = max; break
+        default: return
+      }
+      e.preventDefault()
+      const far = e.key === 'Home' || e.key === 'End'
+      lenis.scrollTo(Math.max(0, Math.min(max, to)), far ? { duration: 1.4 } : { lerp: 0.1 })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { cancelAnimationFrame(id); window.removeEventListener('keydown', onKey); lenis.destroy() }
   }, [])
 }
 
